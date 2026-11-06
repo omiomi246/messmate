@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>MessMate - Offline Mess Tracker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        slate: {
+                            850: '#151e32',
+                            900: '#0f172a',
+                            950: '#090d16',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom subtle animations and mobile touch optimizations */
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior-y: contain;
+        }
+        .btn-press {
+            transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s ease;
+        }
+        .btn-press:active {
+            transform: scale(0.95);
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-up {
+            animation: slideUp 0.25s ease-out forwards;
+        }
+        @keyframes toastSlide {
+            0% { transform: translate(-50%, 100%); opacity: 0; }
+            15% { transform: translate(-50%, 0); opacity: 1; }
+            85% { transform: translate(-50%, 0); opacity: 1; }
+            100% { transform: translate(-50%, 100%); opacity: 0; }
+        }
+        .toast-active {
+            animation: toastSlide 2.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        /* Hide scrollbars cleanly */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center selection:bg-emerald-500/30">
+
+    <!-- Main Mobile Container -->
+    <div class="w-full max-w-md min-h-screen bg-slate-900/60 border-x border-slate-800/60 flex flex-col relative pb-8 shadow-2xl">
+        
+        <!-- Top Header -->
+        <header class="px-5 pt-5 pb-3 flex items-center justify-between sticky top-0 z-20 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/70">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <i data-lucide="utensils" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold tracking-tight text-white leading-tight">MessMate</h1>
+                    <p class="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                        Offline Local Storage
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openBackupModal()" title="Backup & Export" class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/70 btn-press">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                </button>
+                <button onclick="openSettingsModal()" title="Meal Rates & Settings" class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/70 btn-press">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="px-4 pt-4 space-y-5 flex-1">
+            
+            <!-- 1. Top Balance Dashboard Card -->
+            <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-800 via-slate-850 to-slate-900 border border-slate-700/80 p-5 shadow-xl">
+                <!-- Decorative background glow -->
+                <div id="balanceGlow" class="absolute -right-10 -top-10 w-36 h-36 rounded-full bg-emerald-500/15 blur-2xl pointer-events-none transition-colors duration-300"></div>
+                
+                <div class="flex items-start justify-between mb-1">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Available Mess Balance</span>
+                    <!-- Low Balance Warning Badge -->
+                    <span id="lowBalanceBadge" class="hidden items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                        <i data-lucide="alert-triangle" class="w-3 h-3"></i>
+                        Low Balance
+                    </span>
+                </div>
+
+                <!-- Balance Figure -->
+                <div class="flex items-baseline gap-1 my-1">
+                    <span class="text-2xl font-bold text-slate-400">₹</span>
+                    <span id="balanceDisplay" class="text-5xl font-extrabold tracking-tight text-white">0</span>
+                </div>
+
+                <!-- Remaining Meals Estimate & Monthly Stats -->
+                <div class="mt-4 pt-3.5 border-t border-slate-700/60 flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-2 text-slate-300">
+                        <div class="p-1.5 rounded-lg bg-slate-800 border border-slate-700">
+                            <i data-lucide="calculator" class="w-3.5 h-3.5 text-emerald-400"></i>
+                        </div>
+                        <div>
+                            <p class="text-slate-400 text-[11px]">Est. Remaining</p>
+                            <p id="remainingMealsText" class="font-semibold text-white">~0 meals left</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-slate-400 text-[11px]">This Month Eaten</p>
+                        <p id="monthlyStatsText" class="font-semibold text-slate-200">0 meals · 0 skipped</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. Deposit Quick Actions -->
+            <section class="grid grid-cols-5 gap-2.5">
+                <button onclick="addDeposit(500)" class="col-span-3 py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 btn-press">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span>Add ₹500</span>
+                </button>
+                <button onclick="openCustomDepositModal()" class="col-span-2 py-3.5 px-3 rounded-2xl bg-slate-800 hover:bg-slate-750 text-emerald-400 border border-emerald-500/30 font-semibold text-sm flex items-center justify-center gap-1.5 btn-press">
+                    <i data-lucide="wallet" class="w-4 h-4"></i>
+                    <span>Custom ₹</span>
+                </button>
+            </section>
+
+            <!-- 3. Daily Meal Logging Controls -->
+            <section class="space-y-2.5">
+                <div class="flex items-center justify-between px-1">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Log Today's Meal</h2>
+                    <span class="text-[11px] text-slate-500">Tap once to record</span>
+                </div>
+
+                <!-- Eaten Meals Row -->
+                <div class="grid grid-cols-3 gap-2.5">
+                    <!-- Lunch Button -->
+                    <button onclick="logMeal('lunch')" class="p-3.5 rounded-2xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 flex flex-col items-center justify-center gap-1.5 btn-press group">
+                        <div class="w-9 h-9 rounded-xl bg-orange-500/15 text-orange-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                            <i data-lucide="sun" class="w-5 h-5"></i>
+                        </div>
+                        <span class="text-xs font-bold text-white">Lunch</span>
+                        <span id="lunchRateLabel" class="text-xs font-semibold text-rose-400">-₹45</span>
+                    </button>
+
+                    <!-- Dinner Button -->
+                    <button onclick="logMeal('dinner')" class="p-3.5 rounded-2xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 flex flex-col items-center justify-center gap-1.5 btn-press group">
+                        <div class="w-9 h-9 rounded-xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                            <i data-lucide="moon" class="w-5 h-5"></i>
+                        </div>
+                        <span class="text-xs font-bold text-white">Dinner</span>
+                        <span id="dinnerRateLabel" class="text-xs font-semibold text-rose-400">-₹45</span>
+                    </button>
+
+                    <!-- Special Meal Button -->
+                    <button onclick="logMeal('special')" class="p-3.5 rounded-2xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 flex flex-col items-center justify-center gap-1.5 btn-press group">
+                        <div class="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                            <i data-lucide="sparkles" class="w-5 h-5"></i>
+                        </div>
+                        <span class="text-xs font-bold text-white">Special</span>
+                        <span id="specialRateLabel" class="text-xs font-semibold text-rose-400">-₹80</span>
+                    </button>
+                </div>
+
+                <!-- Opt-Out / Skipped Meals Row (₹0 Deduction) -->
+                <div class="grid grid-cols-2 gap-2.5 pt-1">
+                    <button onclick="logSkipped('Skipped Lunch')" class="py-3 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800/80 border border-dashed border-slate-700 text-slate-300 flex items-center justify-center gap-2 text-xs font-semibold btn-press">
+                        <i data-lucide="ban" class="w-3.5 h-3.5 text-slate-400"></i>
+                        <span>Skipped Lunch</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">₹0</span>
+                    </button>
+                    <button onclick="logSkipped('Skipped Dinner')" class="py-3 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800/80 border border-dashed border-slate-700 text-slate-300 flex items-center justify-center gap-2 text-xs font-semibold btn-press">
+                        <i data-lucide="ban" class="w-3.5 h-3.5 text-slate-400"></i>
+                        <span>Skipped Dinner</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">₹0</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 4. Transaction & Meal History Log -->
+            <section class="space-y-3 pt-1">
+                <div class="flex items-center justify-between px-1">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">History Log</h2>
+                    <!-- Filter Pills -->
+                    <div class="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                        <button onclick="setFilter('all')" id="filter-all" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 text-white transition-colors">All</button>
+                        <button onclick="setFilter('meals')" id="filter-meals" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-slate-200 transition-colors">Meals</button>
+                        <button onclick="setFilter('skipped')" id="filter-skipped" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-slate-200 transition-colors">Skipped</button>
+                        <button onclick="setFilter('deposits')" id="filter-deposits" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-slate-200 transition-colors">₹ Added</button>
+                    </div>
+                </div>
+
+                <!-- Log Container -->
+                <div id="historyList" class="space-y-2.5 pb-6">
+                    <!-- Dynamic items injected via JS -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Floating Toast Notification -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0">
+        <div class="px-4 py-2.5 rounded-full bg-slate-800 border border-slate-700 text-white text-xs font-semibold shadow-2xl flex items-center gap-2 whitespace-nowrap">
+            <span id="toastIcon" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span id="toastMessage">Action saved</span>
+        </div>
+    </div>
+
+    <!-- Custom Deposit Modal -->
+    <div id="customDepositModal" class="fixed inset-0 z-40 hidden items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 animate-slide-up shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-white">Add Custom Deposit</h3>
+                <button onclick="closeModal('customDepositModal')" class="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1.5">Amount in Rupees (₹)</label>
+                    <input type="number" id="customAmountInput" placeholder="e.g., 1000" min="1" step="1" class="w-full px-4 py-3 rounded-2xl bg-slate-950 border border-slate-700 text-white text-lg font-bold focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1.5">Note (Optional)</label>
+                    <input type="text" id="customNoteInput" placeholder="e.g., Paid via UPI to Mess Manager" class="w-full px-4 py-2.5 rounded-2xl bg-slate-950 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+                <!-- Quick Preset Chips -->
+                <div class="flex gap-2 pt-1">
+                    <button type="button" onclick="setCustomAmount(250)" class="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">+₹250</button>
+                    <button type="button" onclick="setCustomAmount(500)" class="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">+₹500</button>
+                    <button type="button" onclick="setCustomAmount(1000)" class="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">+₹1000</button>
+                </div>
+            </div>
+            <button onclick="submitCustomDeposit()" class="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm btn-press">
+                Add to Balance
+            </button>
+        </div>
+    </div>
+
+    <!-- Settings / Meal Rates Modal -->
+    <div id="settingsModal" class="fixed inset-0 z-40 hidden items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 animate-slide-up shadow-2xl">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-base font-bold text-white">Meal Rates & Alerts</h3>
+                    <p class="text-xs text-slate-400">Configure your mess per-meal charges</p>
+                </div>
+                <button onclick="closeModal('settingsModal')" class="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="space-y-3">
+                <div class="grid grid-cols-3 gap-2.5">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Lunch (₹)</label>
+                        <input type="number" id="settingLunchRate" min="0" class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-bold text-sm focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Dinner (₹)</label>
+                        <input type="number" id="settingDinnerRate" min="0" class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-bold text-sm focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Special (₹)</label>
+                        <input type="number" id="settingSpecialRate" min="0" class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-bold text-sm focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">Low Balance Warning Threshold (₹)</label>
+                    <input type="number" id="settingLowThreshold" min="0" class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-bold text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+            <button onclick="saveSettings()" class="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm btn-press">
+                Save Rates
+            </button>
+        </div>
+    </div>
+
+    <!-- Backup & Reset Modal -->
+    <div id="backupModal" class="fixed inset-0 z-40 hidden items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 animate-slide-up shadow-2xl">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-base font-bold text-white">Backup & Data Control</h3>
+                    <p class="text-xs text-slate-400">All data lives locally on your phone</p>
+                </div>
+                <button onclick="closeModal('backupModal')" class="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="space-y-2.5">
+                <button onclick="exportCSV()" class="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-white font-semibold text-sm flex items-center justify-between btn-press">
+                    <span class="flex items-center gap-2.5">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-400"></i>
+                        Export History as CSV (Excel)
+                    </span>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
+                </button>
+                <button onclick="exportJSON()" class="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-white font-semibold text-sm flex items-center justify-between btn-press">
+                    <span class="flex items-center gap-2.5">
+                        <i data-lucide="file-json" class="w-4 h-4 text-sky-400"></i>
+                        Download Full JSON Backup
+                    </span>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
+                </button>
+                
+                <!-- Import JSON Backup -->
+                <label class="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-white font-semibold text-sm flex items-center justify-between cursor-pointer btn-press">
+                    <span class="flex items-center gap-2.5">
+                        <i data-lucide="upload" class="w-4 h-4 text-amber-400"></i>
+                        Restore from JSON Backup
+                    </span>
+                    <input type="file" accept=".json" onchange="importJSON(event)" class="hidden">
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
+                </label>
+
+                <div class="pt-3 border-t border-slate-800">
+                    <div id="resetConfirmBox" class="hidden p-3 rounded-2xl bg-rose-950/50 border border-rose-500/40 space-y-2.5 mb-2">
+                        <p class="text-xs text-rose-200 font-medium">Are you sure? This will permanently erase all your balance and meal logs on this device.</p>
+                        <div class="flex gap-2">
+                            <button onclick="executeReset()" class="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold">Yes, Wipe Everything</button>
+                            <button onclick="toggleResetConfirm(false)" class="flex-1 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">Cancel</button>
+                        </div>
+                    </div>
+                    <button id="resetTriggerBtn" onclick="toggleResetConfirm(true)" class="w-full py-3 px-4 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold text-sm flex items-center justify-center gap-2 btn-press">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        Reset All Local Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // STATE MANAGEMENT & LOCALSTORAGE PERSISTENCE
+        // ==========================================
+        const STORAGE_KEY = 'messmate_offline_data_v1';
+
+        const defaultState = {
+            balance: 0,
+            settings: {
+                lunchRate: 45,
+                dinnerRate: 45,
+                specialRate: 80,
+                lowThreshold: 100
+            },
+            transactions: []
+        };
+
+        let appState = loadState();
+        let currentFilter = 'all';
+
+        function loadState() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return JSON.parse(JSON.stringify(defaultState));
+                const parsed = JSON.parse(raw);
+                return {
+                    balance: typeof parsed.balance === 'number' ? parsed.balance : 0,
+                    settings: { ...defaultState.settings, ...(parsed.settings || {}) },
+                    transactions: Array.isArray(parsed.transactions) ? parsed.transactions : []
+                };
+            } catch (e) {
+                console.error('Failed to read localStorage:', e);
+                return JSON.parse(JSON.stringify(defaultState));
+            }
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+            } catch (e) {
+                showToast('Storage full! Export backup now.', 'rose');
+            }
+        }
+
+        // ==========================================
+        // CORE ACTIONS (DEPOSIT, MEAL, SKIP, UNDO)
+        // ==========================================
+        function addDeposit(amount, note = 'Mess Deposit') {
+            const numAmount = Math.round(Number(amount));
+            if (isNaN(numAmount) || numAmount <= 0) {
+                showToast('Enter a valid amount', 'amber');
+                return;
+            }
+
+            appState.balance += numAmount;
+            appState.transactions.unshift({
+                id: Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+                type: 'deposit',
+                label: note || 'Mess Deposit',
+                amount: numAmount,
+                timestamp: new Date().toISOString()
+            });
+
+            saveState();
+            renderApp();
+            showToast(`Added +₹${numAmount} to balance`, 'emerald');
+        }
+
+        function logMeal(mealType) {
+            let rate = 0;
+            let label = '';
+
+            if (mealType === 'lunch') {
+                rate = appState.settings.lunchRate;
+                label = 'Lunch';
+            } else if (mealType === 'dinner') {
+                rate = appState.settings.dinnerRate;
+                label = 'Dinner';
+            } else if (mealType === 'special') {
+                rate = appState.settings.specialRate;
+                label = 'Special Meal';
+            }
+
+            appState.balance -= rate;
+            appState.transactions.unshift({
+                id: Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+                type: 'meal',
+                mealKey: mealType,
+                label: label,
+                amount: -rate,
+                timestamp: new Date().toISOString()
+            });
+
+            saveState();
+            renderApp();
+            showToast(`Logged ${label} (-₹${rate})`, 'rose');
+        }
+
+        function logSkipped(label) {
+            appState.transactions.unshift({
+                id: Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+                type: 'skipped',
+                label: label,
+                amount: 0,
+                timestamp: new Date().toISOString()
+            });
+
+            saveState();
+            renderApp();
+            showToast(`Marked ${label} (₹0)`, 'slate');
+        }
+
+        function deleteTransaction(id) {
+            const index = appState.transactions.findIndex(t => t.id === id);
+            if (index === -1) return;
+
+            const tx = appState.transactions[index];
+            // Reverse financial impact
+            appState.balance -= tx.amount;
+            appState.transactions.splice(index, 1);
+
+            saveState();
+            renderApp();
+            showToast(`Undid "${tx.label}"`, 'amber');
+        }
+
+        // ==========================================
+        // UI RENDERING
+        // ==========================================
+        function renderApp() {
+            // 1. Update Balance & Warning Badge
+            const balanceEl = document.getElementById('balanceDisplay');
+            const badgeEl = document.getElementById('lowBalanceBadge');
+            const glowEl = document.getElementById('balanceGlow');
+
+            balanceEl.textContent = appState.balance;
+            if (appState.balance < 0) {
+                balanceEl.className = 'text-5xl font-extrabold tracking-tight text-rose-400';
+            } else {
+                balanceEl.className = 'text-5xl font-extrabold tracking-tight text-white';
+            }
+
+            if (appState.balance < appState.settings.lowThreshold) {
+                badgeEl.classList.remove('hidden');
+                badgeEl.classList.add('inline-flex');
+                glowEl.className = 'absolute -right-10 -top-10 w-36 h-36 rounded-full bg-amber-500/20 blur-2xl pointer-events-none transition-colors duration-300';
+            } else {
+                badgeEl.classList.add('hidden');
+                badgeEl.classList.remove('inline-flex');
+                glowEl.className = 'absolute -right-10 -top-10 w-36 h-36 rounded-full bg-emerald-500/15 blur-2xl pointer-events-none transition-colors duration-300';
+            }
+
+            // 2. Remaining Meals Estimate
+            const avgRate = (appState.settings.lunchRate + appState.settings.dinnerRate) / 2 || 45;
+            const estMeals = appState.balance > 0 ? Math.floor(appState.balance / avgRate) : 0;
+            document.getElementById('remainingMealsText').textContent = `~${estMeals} ${estMeals === 1 ? 'meal' : 'meals'} left`;
+
+            // 3. Monthly Stats
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            let eatenCount = 0;
+            let skippedCount = 0;
+
+            appState.transactions.forEach(tx => {
+                const d = new Date(tx.timestamp);
+                if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+                    if (tx.type === 'meal') eatenCount++;
+                    if (tx.type === 'skipped') skippedCount++;
+                }
+            });
+            document.getElementById('monthlyStatsText').textContent = `${eatenCount} eaten · ${skippedCount} skipped`;
+
+            // 4. Button Rate Labels
+            document.getElementById('lunchRateLabel').textContent = `-₹${appState.settings.lunchRate}`;
+            document.getElementById('dinnerRateLabel').textContent = `-₹${appState.settings.dinnerRate}`;
+            document.getElementById('specialRateLabel').textContent = `-₹${appState.settings.specialRate}`;
+
+            // 5. Render History List
+            renderHistory();
+            lucide.createIcons();
+        }
+
+        function setFilter(filter) {
+            currentFilter = filter;
+            ['all', 'meals', 'skipped', 'deposits'].forEach(f => {
+                const btn = document.getElementById(`filter-${f}`);
+                if (f === filter) {
+                    btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 text-white transition-colors';
+                } else {
+                    btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-slate-200 transition-colors';
+                }
+            });
+            renderHistory();
+            lucide.createIcons();
+        }
+
+        function renderHistory() {
+            const listEl = document.getElementById('historyList');
+            const filtered = appState.transactions.filter(tx => {
+                if (currentFilter === 'meals') return tx.type === 'meal';
+                if (currentFilter === 'skipped') return tx.type === 'skipped';
+                if (currentFilter === 'deposits') return tx.type === 'deposit';
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                listEl.innerHTML = `
+                    <div class="py-10 px-4 text-center rounded-3xl bg-slate-900/50 border border-dashed border-slate-800">
+                        <p class="text-sm font-semibold text-slate-400">No records found</p>
+                        <p class="text-xs text-slate-500 mt-1">Tap "+ Add ₹500" or log a meal above to begin tracking.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            listEl.innerHTML = filtered.map(tx => {
+                const dateObj = new Date(tx.timestamp);
+                const formattedDate = formatFriendlyDate(dateObj);
+
+                let iconHtml = '';
+                let amountHtml = '';
+                let badgeBg = '';
+
+                if (tx.type === 'deposit') {
+                    badgeBg = 'bg-emerald-500/15 text-emerald-400';
+                    iconHtml = `<i data-lucide="arrow-down-left" class="w-4 h-4"></i>`;
+                    amountHtml = `<span class="text-sm font-bold text-emerald-400">+₹${tx.amount}</span>`;
+                } else if (tx.type === 'skipped') {
+                    badgeBg = 'bg-slate-800 text-slate-400';
+                    iconHtml = `<i data-lucide="ban" class="w-4 h-4"></i>`;
+                    amountHtml = `<span class="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400">Opted Out</span>`;
+                } else {
+                    if (tx.mealKey === 'lunch') {
+                        badgeBg = 'bg-orange-500/15 text-orange-400';
+                        iconHtml = `<i data-lucide="sun" class="w-4 h-4"></i>`;
+                    } else if (tx.mealKey === 'dinner') {
+                        badgeBg = 'bg-indigo-500/15 text-indigo-400';
+                        iconHtml = `<i data-lucide="moon" class="w-4 h-4"></i>`;
+                    } else {
+                        badgeBg = 'bg-amber-500/15 text-amber-400';
+                        iconHtml = `<i data-lucide="sparkles" class="w-4 h-4"></i>`;
+                    }
+                    amountHtml = `<span class="text-sm font-bold text-rose-400">-₹${Math.abs(tx.amount)}</span>`;
+                }
+
+                return `
+                    <div class="p-3.5 rounded-2xl bg-slate-850/90 border border-slate-800/90 flex items-center justify-between gap-3 animate-slide-up">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-9 h-9 rounded-xl ${badgeBg} flex items-center justify-center shrink-0">
+                                ${iconHtml}
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold text-slate-100 truncate">${escapeHTML(tx.label)}</p>
+                                <p class="text-[11px] text-slate-400">${formattedDate}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2.5 shrink-0">
+                            ${amountHtml}
+                            <button onclick="deleteTransaction('${tx.id}')" title="Undo / Delete Entry" class="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors btn-press">
+                                <i data-lucide="undo-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatFriendlyDate(date) {
+            const now = new Date();
+            const isToday = date.toDateString() === now.toDateString();
+            const yesterday = new Date(now);
+            yesterday.setDate(now.getDate() - 1);
+            const isYesterday = date.toDateString() === yesterday.toDateString();
+
+            const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            if (isToday) return `Today, ${timeStr}`;
+            if (isYesterday) return `Yesterday, ${timeStr}`;
+
+            const dayStr = date.toLocaleDateString([], { day: 'numeric', month: 'short' });
+            return `${dayStr}, ${timeStr}`;
+        }
+
+        function escapeHTML(str) {
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[m]);
+        }
+
+        // ==========================================
+        // MODALS & SETTINGS
+        // ==========================================
+        function openCustomDepositModal() {
+            document.getElementById('customAmountInput').value = '';
+            document.getElementById('customNoteInput').value = '';
+            document.getElementById('customDepositModal').classList.remove('hidden');
+            document.getElementById('customDepositModal').classList.add('flex');
+            setTimeout(() => document.getElementById('customAmountInput').focus(), 100);
+        }
+
+        function setCustomAmount(val) {
+            document.getElementById('customAmountInput').value = val;
+        }
+
+        function submitCustomDeposit() {
+            const amt = document.getElementById('customAmountInput').value;
+            const note = document.getElementById('customNoteInput').value.trim();
+            if (!amt || Number(amt) <= 0) {
+                showToast('Please enter a valid amount', 'amber');
+                return;
+            }
+            addDeposit(amt, note || 'Custom Deposit');
+            closeModal('customDepositModal');
+        }
+
+        function openSettingsModal() {
+            document.getElementById('settingLunchRate').value = appState.settings.lunchRate;
+            document.getElementById('settingDinnerRate').value = appState.settings.dinnerRate;
+            document.getElementById('settingSpecialRate').value = appState.settings.specialRate;
+            document.getElementById('settingLowThreshold').value = appState.settings.lowThreshold;
+
+            document.getElementById('settingsModal').classList.remove('hidden');
+            document.getElementById('settingsModal').classList.add('flex');
+        }
+
+        function saveSettings() {
+            const lunch = Math.max(0, Number(document.getElementById('settingLunchRate').value) || 0);
+            const dinner = Math.max(0, Number(document.getElementById('settingDinnerRate').value) || 0);
+            const special = Math.max(0, Number(document.getElementById('settingSpecialRate').value) || 0);
+            const threshold = Math.max(0, Number(document.getElementById('settingLowThreshold').value) || 0);
+
+            appState.settings = {
+                lunchRate: lunch,
+                dinnerRate: dinner,
+                specialRate: special,
+                lowThreshold: threshold
+            };
+
+            saveState();
+            renderApp();
+            closeModal('settingsModal');
+            showToast('Meal rates updated', 'emerald');
+        }
+
+        function openBackupModal() {
+            toggleResetConfirm(false);
+            document.getElementById('backupModal').classList.remove('hidden');
+            document.getElementById('backupModal').classList.add('flex');
+        }
+
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            el.classList.add('hidden');
+            el.classList.remove('flex');
+        }
+
+        function toggleResetConfirm(show) {
+            const box = document.getElementById('resetConfirmBox');
+            const trigger = document.getElementById('resetTriggerBtn');
+            if (show) {
+                box.classList.remove('hidden');
+                trigger.classList.add('hidden');
+            } else {
+                box.classList.add('hidden');
+                trigger.classList.remove('hidden');
+            }
+        }
+
+        function executeReset() {
+            appState = JSON.parse(JSON.stringify(defaultState));
+            saveState();
+            renderApp();
+            closeModal('backupModal');
+            showToast('All local data reset', 'amber');
+        }
+
+        // ==========================================
+        // DATA EXPORT & IMPORT (CSV / JSON)
+        // ==========================================
+        function exportCSV() {
+            if (appState.transactions.length === 0) {
+                showToast('No history to export yet', 'amber');
+                return;
+            }
+            const headers = ['Date', 'Time', 'Type', 'Meal/Description', 'Amount (INR)'];
+            const rows = appState.transactions.map(tx => {
+                const d = new Date(tx.timestamp);
+                const dateStr = d.toLocaleDateString('en-IN');
+                const timeStr = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                return [
+                    `"${dateStr}"`,
+                    `"${timeStr}"`,
+                    `"${tx.type.toUpperCase()}"`,
+                    `"${tx.label.replace(/"/g, '""')}"`,
+                    tx.amount
+                ].join(',');
+            });
+
+            const csvContent = [headers.join(','), ...rows].join('\n');
+            triggerDownload(csvContent, `MessMate_Log_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8;');
+            showToast('CSV exported', 'emerald');
+        }
+
+        function exportJSON() {
+            const jsonContent = JSON.stringify(appState, null, 2);
+            triggerDownload(jsonContent, `MessMate_Backup_${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+            showToast('JSON backup saved', 'emerald');
+        }
+
+        function importJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (typeof imported.balance === 'number' && Array.isArray(imported.transactions)) {
+                        appState = {
+                            balance: imported.balance,
+                            settings: { ...defaultState.settings, ...(imported.settings || {}) },
+                            transactions: imported.transactions
+                        };
+                        saveState();
+                        renderApp();
+                        closeModal('backupModal');
+                        showToast('Backup restored successfully!', 'emerald');
+                    } else {
+                        showToast('Invalid backup file format', 'rose');
+                    }
+                } catch (err) {
+                    showToast('Could not read JSON file', 'rose');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function triggerDownload(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ==========================================
+        // TOAST FEEDBACK HELPER
+        // ==========================================
+        let toastTimeout;
+        function showToast(message, color = 'emerald') {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toastMessage');
+            const dotEl = document.getElementById('toastIcon');
+
+            msgEl.textContent = message;
+            const colorMap = {
+                emerald: 'bg-emerald-400',
+                rose: 'bg-rose-400',
+                amber: 'bg-amber-400',
+                slate: 'bg-slate-400'
+            };
+            dotEl.className = `w-2 h-2 rounded-full ${colorMap[color] || 'bg-emerald-400'}`;
+
+            toast.classList.remove('toast-active');
+            void toast.offsetWidth; // trigger reflow
+            toast.classList.add('toast-active');
+        }
+
+        // ==========================================
+        // OFFLINE SERVICE WORKER REGISTRATION (INLINE)
+        // ==========================================
+        if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+            const swCode = `
+                const CACHE_NAME = 'messmate-cache-v1';
+                self.addEventListener('install', (e) => {
+                    self.skipWaiting();
+                });
+                self.addEventListener('fetch', (e) => {
+                    e.respondWith(
+                        caches.match(e.request).then((cached) => {
+                            return cached || fetch(e.request).then((resp) => {
+                                return caches.open(CACHE_NAME).then((cache) => {
+                                    if (e.request.method === 'GET') cache.put(e.request, resp.clone());
+                                    return resp;
+                                });
+                            }).catch(() => cached);
+                        })
+                    );
+                });
+            `;
+            const swBlob = new Blob([swCode], { type: 'application/javascript' });
+            const swUrl = URL.createObjectURL(swBlob);
+            navigator.serviceWorker.register(swUrl).catch(() => {});
+        }
+
+        // Initial Boot
+        window.addEventListener('DOMContentLoaded', () => {
+            renderApp();
+        });
+    </script>
+</body>
+</html>
